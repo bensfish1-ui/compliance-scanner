@@ -3,8 +3,8 @@ import type {
   CognitoUserSession as CognitoUserSessionType,
 } from "amazon-cognito-identity-js";
 
-const POOL_ID = process.env.NEXT_PUBLIC_COGNITO_USER_POOL_ID || "";
-const CLIENT_ID = process.env.NEXT_PUBLIC_COGNITO_CLIENT_ID || "";
+const POOL_ID = process.env.NEXT_PUBLIC_COGNITO_USER_POOL_ID || "eu-north-1_KF9aDU71S";
+const CLIENT_ID = process.env.NEXT_PUBLIC_COGNITO_CLIENT_ID || "cblredme7p5e0sa5bfarfc4t0";
 
 // Lazy-init the user pool to avoid errors during SSR/build
 let _userPool: CognitoUserPoolType | null = null;
