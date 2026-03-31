@@ -1,0 +1,174 @@
+version: "3.8"
+
+services:
+  postgres:
+    image: ankane/pgvector:v0.5.1
+    container_name: cs-postgres
+    restart: unless-stopped
+    ports:
+      - "5432:5432"
+    environment:
+      POSTGRES_DB: compliance_scanner
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - compliance-network
+
+  redis:
+    image: redis:7-alpine
+    container_name: cs-redis
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    command: redis-server --appendonly yes --maxmemory 256mb --maxmemory-policy allkeys-lru
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - compliance-network
+
+  opensearch:
+    image: opensearchproject/opensearch:2.11.1
+    container_name: cs-opensearch
+    restart: unless-stopped
+    ports:
+      - "9200:9200"
+      - "9600:9600"
+    environment:
+      discovery.type: single-node
+      plugins.security.disabled: "true"
+      OPENSEARCH_JAVA_OPTS: "-Xms512m -Xmx512m"
+      DISABLE_INSTALL_DEMO_CONFIG: "true"
+      DISABLE_SECURITY_PLUGIN: "true"
+    volumes:
+      - opensearch_data:/usr/share/opensearch/data
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sf http://localhost:9200/_cluster/health || exit 1"]
+      interval: 15s
+      timeout: 10s
+      retries: 5
+      start_period: 30s
+    networks:
+      - compliance-network
+
+  opensearch-dashboards:
+    image: opensearchproject/opensearch-dashboards:2.11.1
+    container_name: cs-opensearch-dashboards
+    restart: unless-stopped
+    ports:
+      - "5601:5601"
+    environment:
+      OPENSEARCH_HOSTS: '["http://opensearch:9200"]'
+      DISABLE_SECURITY_DASHBOARDS_PLUGIN: "true"
+    depends_on:
+      opensearch:
+        condition: service_healthy
+    networks:
+      - compliance-network
+
+  localstack:
+    image: localstack/localstack:3.0
+    container_name: cs-localstack
+    restart: unless-stopped
+    ports:
+      - "4566:4566"
+    environment:
+      SERVICES: s3,sqs,sns,ses,secretsmanager
+      DEBUG: 0
+      DATA_DIR: /tmp/localstack/data
+      AWS_DEFAULT_REGION: eu-west-2
+    volumes:
+      - localstack_data:/tmp/localstack
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sf http://localhost:4566/_localstack/health || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - compliance-network
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: cs-backend
+    restart: unless-stopped
+    ports:
+      - "4000:4000"
+    environment:
+      NODE_ENV: development
+      PORT: "4000"
+      DATABASE_URL: postgresql://postgres:postgres@postgres:5432/compliance_scanner
+      REDIS_HOST: redis
+      REDIS_PORT: "6379"
+      OPENSEARCH_NODE: http://opensearch:9200
+      AWS_REGION: eu-west-2
+      AWS_ACCESS_KEY_ID: test
+      AWS_SECRET_ACCESS_KEY: test
+      AWS_ENDPOINT_URL: http://localstack:4566
+      S3_BUCKET_NAME: compliance-scanner-documents
+      COGNITO_USER_POOL_ID: local_pool
+      COGNITO_CLIENT_ID: local_client
+      COGNITO_REGION: eu-west-2
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      OPENAI_MODEL: gpt-4-turbo
+      OPENAI_EMBEDDING_MODEL: text-embedding-3-small
+      CORS_ORIGINS: http://localhost:3000
+      JWT_SECRET: dev-secret-change-in-production
+      LOG_LEVEL: debug
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      opensearch:
+        condition: service_healthy
+      localstack:
+        condition: service_healthy
+    networks:
+      - compliance-network
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: cs-frontend
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    environment:
+      NEXT_PUBLIC_API_URL: http://localhost:4000/api/v1
+      NEXT_PUBLIC_WS_URL: http://localhost:4000
+      NEXT_PUBLIC_COGNITO_USER_POOL_ID: local_pool
+      NEXT_PUBLIC_COGNITO_CLIENT_ID: local_client
+      NEXT_PUBLIC_COGNITO_REGION: eu-west-2
+    depends_on:
+      - backend
+    networks:
+      - compliance-network
+
+volumes:
+  postgres_data:
+    driver: local
+  redis_data:
+    driver: local
+  opensearch_data:
+    driver: local
+  localstack_data:
+    driver: local
+
+networks:
+  compliance-network:
+    driver: bridge
+    name: compliance-network

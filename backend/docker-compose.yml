@@ -1,0 +1,143 @@
+version: '3.8'
+
+services:
+  # ── Backend API ────────────────────────────────────────
+  backend:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: compliance-backend
+    ports:
+      - '4000:4000'
+    env_file:
+      - .env
+    environment:
+      DATABASE_URL: postgresql://compliance:compliance@postgres:5432/compliance_scanner?schema=public
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      OPENSEARCH_NODE: http://opensearch:9200
+      AWS_S3_ENDPOINT: http://localstack:4566
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      opensearch:
+        condition: service_started
+      localstack:
+        condition: service_started
+    volumes:
+      - ./logs:/app/logs
+    restart: unless-stopped
+    networks:
+      - compliance-network
+
+  # ── PostgreSQL with pgvector ───────────────────────────
+  postgres:
+    image: pgvector/pgvector:pg16
+    container_name: compliance-postgres
+    ports:
+      - '5432:5432'
+    environment:
+      POSTGRES_DB: compliance_scanner
+      POSTGRES_USER: compliance
+      POSTGRES_PASSWORD: compliance
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U compliance -d compliance_scanner']
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+    networks:
+      - compliance-network
+
+  # ── Redis ──────────────────────────────────────────────
+  redis:
+    image: redis:7-alpine
+    container_name: compliance-redis
+    ports:
+      - '6379:6379'
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ['CMD', 'redis-cli', 'ping']
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+    networks:
+      - compliance-network
+
+  # ── OpenSearch ─────────────────────────────────────────
+  opensearch:
+    image: opensearchproject/opensearch:2.11.0
+    container_name: compliance-opensearch
+    ports:
+      - '9200:9200'
+      - '9600:9600'
+    environment:
+      - discovery.type=single-node
+      - DISABLE_SECURITY_PLUGIN=true
+      - OPENSEARCH_JAVA_OPTS=-Xms512m -Xmx512m
+      - cluster.name=compliance-cluster
+    volumes:
+      - opensearch_data:/usr/share/opensearch/data
+    ulimits:
+      memlock:
+        soft: -1
+        hard: -1
+      nofile:
+        soft: 65536
+        hard: 65536
+    restart: unless-stopped
+    networks:
+      - compliance-network
+
+  # ── OpenSearch Dashboards (optional, for debugging) ────
+  opensearch-dashboards:
+    image: opensearchproject/opensearch-dashboards:2.11.0
+    container_name: compliance-opensearch-dashboards
+    ports:
+      - '5601:5601'
+    environment:
+      - OPENSEARCH_HOSTS=["http://opensearch:9200"]
+      - DISABLE_SECURITY_DASHBOARDS_PLUGIN=true
+    depends_on:
+      - opensearch
+    restart: unless-stopped
+    networks:
+      - compliance-network
+    profiles:
+      - debug
+
+  # ── LocalStack (S3 emulation for local development) ───
+  localstack:
+    image: localstack/localstack:3.0
+    container_name: compliance-localstack
+    ports:
+      - '4566:4566'
+    environment:
+      - SERVICES=s3,ses
+      - DEFAULT_REGION=eu-west-2
+      - DATA_DIR=/var/lib/localstack/data
+    volumes:
+      - localstack_data:/var/lib/localstack
+    restart: unless-stopped
+    networks:
+      - compliance-network
+
+volumes:
+  postgres_data:
+    driver: local
+  redis_data:
+    driver: local
+  opensearch_data:
+    driver: local
+  localstack_data:
+    driver: local
+
+networks:
+  compliance-network:
+    driver: bridge

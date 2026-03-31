@@ -1,0 +1,62 @@
+version: "3.8"
+
+# Development overrides - use with: docker compose -f docker-compose.yml -f docker-compose.dev.yml up
+services:
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+      target: development
+    volumes:
+      - ./backend/src:/app/src:delegated
+      - ./backend/prisma:/app/prisma:delegated
+      - ./backend/test:/app/test:delegated
+      - ./backend/tsconfig.json:/app/tsconfig.json:ro
+      - ./backend/nest-cli.json:/app/nest-cli.json:ro
+    command: npm run start:debug
+    ports:
+      - "4000:4000"
+      - "9229:9229"
+    environment:
+      NODE_ENV: development
+      LOG_LEVEL: debug
+      DEBUG: "nestjs:*"
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+      target: development
+    volumes:
+      - ./frontend/src:/app/src:delegated
+      - ./frontend/public:/app/public:delegated
+      - ./frontend/tailwind.config.ts:/app/tailwind.config.ts:ro
+      - ./frontend/postcss.config.js:/app/postcss.config.js:ro
+      - ./frontend/tsconfig.json:/app/tsconfig.json:ro
+    command: npm run dev
+    ports:
+      - "3000:3000"
+    environment:
+      NODE_ENV: development
+      WATCHPACK_POLLING: "true"
+
+  postgres:
+    ports:
+      - "5432:5432"
+
+  redis:
+    ports:
+      - "6379:6379"
+
+  opensearch:
+    ports:
+      - "9200:9200"
+      - "9600:9600"
+
+  opensearch-dashboards:
+    ports:
+      - "5601:5601"
+
+  localstack:
+    ports:
+      - "4566:4566"

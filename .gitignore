@@ -1,0 +1,16 @@
+node_modules/
+dist/
+build/
+.next/
+.env
+.env.local
+.env.production
+*.log
+.DS_Store
+coverage/
+.terraform/
+*.tfstate
+*.tfstate.backup
+.terraform.lock.hcl
+backend/.env
+frontend/.env.local

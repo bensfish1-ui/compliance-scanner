@@ -1,0 +1,36 @@
+# Compliance Scanner - Example Terraform Variables
+# Copy this file to terraform.tfvars and update the values.
+
+aws_region   = "eu-west-2"
+environment  = "staging"
+project_name = "compliance-scanner"
+
+# Database
+db_instance_class = "db.t3.medium"
+db_name           = "compliance_scanner"
+db_username       = "csadmin"
+
+# Cache
+redis_node_type = "cache.t3.micro"
+
+# Search
+opensearch_instance_type = "t3.small.search"
+
+# ECS
+ecs_cpu    = 512
+ecs_memory = 1024
+
+# Optional custom domain (leave empty to use CloudFront default)
+domain_name = ""
+
+# Cognito
+cognito_callback_urls = [
+  "http://localhost:3000/auth/callback",
+  "https://your-domain.com/auth/callback"
+]
+
+# CORS
+cors_allowed_origins = [
+  "http://localhost:3000",
+  "https://your-domain.com"
+]
