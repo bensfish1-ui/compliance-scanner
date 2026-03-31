@@ -3,16 +3,14 @@ frontend:
   phases:
     preBuild:
       commands:
-        - cd frontend && npm ci
-        - cd frontend && printenv | grep -E '^(NEXT_PUBLIC_)' > .env.production
+        - pwd
+        - ls -la
+        - ls -la frontend/ || echo "no frontend dir"
+        - ls -la */ || echo "no subdirs"
     build:
       commands:
-        - cd frontend && npm run build
+        - echo "debug build"
   artifacts:
-    baseDirectory: frontend/.next
+    baseDirectory: .
     files:
       - '**/*'
-  cache:
-    paths:
-      - frontend/node_modules/**/*
-      - frontend/.next/cache/**/*
