@@ -1,17 +1,23 @@
-import {
-  CognitoUserPool,
-  CognitoUser,
-  AuthenticationDetails,
-  CognitoUserSession,
+import type {
+  CognitoUserPool as CognitoUserPoolType,
+  CognitoUserSession as CognitoUserSessionType,
 } from "amazon-cognito-identity-js";
 
 const POOL_ID = process.env.NEXT_PUBLIC_COGNITO_USER_POOL_ID || "";
 const CLIENT_ID = process.env.NEXT_PUBLIC_COGNITO_CLIENT_ID || "";
 
-const userPool = new CognitoUserPool({
-  UserPoolId: POOL_ID,
-  ClientId: CLIENT_ID,
-});
+// Lazy-init the user pool to avoid errors during SSR/build
+let _userPool: CognitoUserPoolType | null = null;
+function getUserPool(): CognitoUserPoolType {
+  if (_userPool) return _userPool;
+  // Dynamic import at runtime only
+  const { CognitoUserPool } = require("amazon-cognito-identity-js");
+  _userPool = new CognitoUserPool({
+    UserPoolId: POOL_ID,
+    ClientId: CLIENT_ID,
+  });
+  return _userPool!;
+}
 
 export interface AuthResult {
   accessToken: string;
@@ -21,6 +27,9 @@ export interface AuthResult {
 }
 
 export function signIn(email: string, password: string): Promise<AuthResult> {
+  const { CognitoUser, AuthenticationDetails } = require("amazon-cognito-identity-js");
+  const userPool = getUserPool();
+
   return new Promise((resolve, reject) => {
     const user = new CognitoUser({
       Username: email,
@@ -33,7 +42,7 @@ export function signIn(email: string, password: string): Promise<AuthResult> {
     });
 
     user.authenticateUser(authDetails, {
-      onSuccess: (session: CognitoUserSession) => {
+      onSuccess: (session: CognitoUserSessionType) => {
         const result: AuthResult = {
           accessToken: session.getAccessToken().getJwtToken(),
           idToken: session.getIdToken().getJwtToken(),
@@ -48,13 +57,12 @@ export function signIn(email: string, password: string): Promise<AuthResult> {
 
         resolve(result);
       },
-      onFailure: (err) => {
+      onFailure: (err: any) => {
         reject(err);
       },
-      newPasswordRequired: (_userAttributes) => {
-        // If Cognito requires a new password, set it to the same one
+      newPasswordRequired: (_userAttributes: any) => {
         user.completeNewPasswordChallenge(password, {}, {
-          onSuccess: (session: CognitoUserSession) => {
+          onSuccess: (session: CognitoUserSessionType) => {
             const result: AuthResult = {
               accessToken: session.getAccessToken().getJwtToken(),
               idToken: session.getIdToken().getJwtToken(),
@@ -67,7 +75,7 @@ export function signIn(email: string, password: string): Promise<AuthResult> {
             localStorage.setItem("user_email", email);
             resolve(result);
           },
-          onFailure: (err) => reject(err),
+          onFailure: (err: any) => reject(err),
         });
       },
     });
@@ -75,9 +83,13 @@ export function signIn(email: string, password: string): Promise<AuthResult> {
 }
 
 export function signOut(): void {
-  const currentUser = userPool.getCurrentUser();
-  if (currentUser) {
-    currentUser.signOut();
+  try {
+    const currentUser = getUserPool().getCurrentUser();
+    if (currentUser) {
+      currentUser.signOut();
+    }
+  } catch {
+    // Ignore errors during sign out
   }
   localStorage.removeItem("access_token");
   localStorage.removeItem("id_token");
