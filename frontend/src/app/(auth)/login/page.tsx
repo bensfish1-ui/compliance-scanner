@@ -36,13 +36,19 @@ export default function LoginPage() {
   const onSubmit = async (data: FormData) => {
     setIsLoading(true);
     try {
-      // Simulate login
-      await new Promise((resolve) => setTimeout(resolve, 1000));
-      localStorage.setItem("access_token", "mock-token");
+      const { signIn } = await import("@/lib/auth");
+      await signIn(data.email, data.password);
       toast.success("Welcome back!");
       router.push("/dashboard");
-    } catch {
-      toast.error("Invalid credentials");
+    } catch (err: any) {
+      const message = err?.message || "Invalid credentials";
+      if (message.includes("Incorrect username or password")) {
+        toast.error("Incorrect email or password");
+      } else if (message.includes("User does not exist")) {
+        toast.error("No account found with that email");
+      } else {
+        toast.error(message);
+      }
     } finally {
       setIsLoading(false);
     }

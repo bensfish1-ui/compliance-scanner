@@ -4,6 +4,7 @@ import * as React from "react";
 import { Bell, LogOut, Settings, User, Moon, Sun } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { cn } from "@/lib/utils";
+import { signOut, getUserEmail } from "@/lib/auth";
 import { SearchCommand } from "@/components/ui/search-command";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
@@ -37,6 +38,8 @@ export function Header() {
   const { isCollapsed } = useSidebarStore();
   const { notifications, unreadCount, markAsRead, markAllAsRead } =
     useNotificationStore();
+  const userEmail = getUserEmail() || "Admin";
+  const initials = userEmail.substring(0, 2).toUpperCase();
 
   return (
     <header
@@ -123,10 +126,10 @@ export function Header() {
           <DropdownMenuTrigger asChild>
             <button className="flex items-center gap-2 rounded-lg px-2 py-1.5 hover:bg-white/[0.04] transition-colors">
               <Avatar className="h-8 w-8">
-                <AvatarFallback className="text-xs">JD</AvatarFallback>
+                <AvatarFallback className="text-xs">{initials}</AvatarFallback>
               </Avatar>
               <div className="hidden md:block text-left">
-                <p className="text-sm font-medium text-slate-200">John Doe</p>
+                <p className="text-sm font-medium text-slate-200">{userEmail}</p>
                 <p className="text-xs text-slate-500">Admin</p>
               </div>
             </button>
@@ -145,7 +148,7 @@ export function Header() {
             <DropdownMenuSeparator />
             <DropdownMenuItem
               onClick={() => {
-                localStorage.removeItem("access_token");
+                signOut();
                 router.push("/login");
               }}
               className="text-red-400 focus:text-red-300"
